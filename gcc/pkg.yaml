@@ -3,6 +3,9 @@ variant: scratch
 dependencies:
   - stage: c
   - image: "stagex/file@sha256:{{ .stagex_file_sha256 }}"
+  - stage: binutils
+  - stage: musl
+    to: /sysroot
 steps:
   - sources:
       - url: https://ftp.gnu.org/gnu/gcc/gcc-{{ .gcc_version }}/gcc-{{ .gcc_version }}.tar.xz
@@ -39,39 +42,59 @@ steps:
         cat ../gcc/limitx.h ../gcc/glimits.h ../gcc/limity.h > `dirname $(gcc -print-libgcc-file-name)`/include-fixed/limits.h
 
         ../configure \
-        --build=${BUILD} \
-        --host=${HOST} \
+        --disable-libssp \
+        --build=x86_64-linux-musl \
+        --host=x86_64-linux-musl \
+        --target=aarch64-linux-musl \
+        --with-build-sysroot=/sysroot \
+        --with-sysroot=/rootfs/usr/sysroot \
         --prefix=/usr \
         --disable-multilib \
-        --disable-nls \
-        --enable-shared \
-        --enable-plugin \
-        --enable-languages=c,c++ \
-        --enable-__cxa_atexit \
-        --enable-c99 \
-        --enable-long-long \
-        --enable-threads=posix \
-        --enable-clocale=generic \
-        --enable-libstdcxx-time \
-        --enable-checking=release \
-        --enable-fully-dynamic-string \
-        --enable-default-pie \
-        --disable-symvers \
-        --disable-gnu-indirect-function \
+        --disable-bootstrap \
+        --disable-assembly \
         --disable-libmudflap \
         --disable-libsanitizer \
+        --disable-gnu-indirect-function \
         --disable-libmpx \
-        --disable-lto-plugin \
-        --disable-libssp \
-        --disable-bootstrap
+        --disable-werror \
+        --enable-languages=c,c++ \
+        --enable-tls \
+        --enable-initfini-array \
+        --enable-libstdcxx-time=rt \
+        --enable-deterministic-archives \
+        # AR_FOR_TARGET=llvm-ar \
+        # AS_FOR_TARGET=llvm-as \
+        # LD_FOR_TARGET=llvm-ld \
+        # NM_FOR_TARGET=llvm-nm \
+        # OBJCOPY_FOR_TARGET=llvm-objcopy \
+        # OBJDUMP_FOR_TARGET=llvm-objdump \
+        # RANLIB_FOR_TARGET=llvm-ranlib \
+        # READELF_FOR_TARGET=llvm-readelf \
+        # STRIP_FOR_TARGET=llvm-strip
+        AR_FOR_TARGET=/usr/bin/aarch64-linux-musl-ar \
+        AS_FOR_TARGET=/usr/bin/aarch64-linux-musl-as \
+        LD_FOR_TARGET=/usr/bin/aarch64-linux-musl-ld \
+        NM_FOR_TARGET=/usr/bin/aarch64-linux-musl-nm \
+        OBJCOPY_FOR_TARGET=/usr/bin/aarch64-linux-musl-objcopy \
+        OBJDUMP_FOR_TARGET=/usr/bin/aarch64-linux-musl-objdump \
+        RANLIB_FOR_TARGET=/usr/bin/aarch64-linux-musl-ranlib \
+        READELF_FOR_TARGET=/usr/bin/aarch64-linux-musl-readelf \
+        STRIP_FOR_TARGET=/usr/bin/aarch64-linux-musl-strip
+
+        make -j $(nproc) all-gcc
     build:
       - |
         cd build
-        make -j $(nproc)
+        make -j $(nproc) all-target-libgcc
+      # - |
+      #   cd build
+      #   make -j $(nproc) all-target-libstdc++-v3
     install:
       - |
         cd build
-        make DESTDIR=/rootfs install-strip
+        make DESTDIR=/rootfs install-gcc
+        make DESTDIR=/rootfs install-target-libgcc
+        # make DESTDIR=/rootfs install-target-libstdc++-v3
         ln -sv gcc /rootfs/usr/bin/cc
 finalize:
   - from: /rootfs
