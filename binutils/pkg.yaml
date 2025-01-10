@@ -18,8 +18,9 @@ steps:
         cd build
 
         ../configure \
-        --build=${BUILD} \
-        --host=${HOST} \
+        --build=x86_64-linux-musl \
+        --host=x86_64-linux-musl \
+        --target=aarch64-linux-musl \
         --prefix=/usr \
         --disable-nls \
         --disable-gprofng \
@@ -38,6 +39,7 @@ steps:
         make -C ld LIB_PATH=/usr/lib:/lib
         cp -v ld/ld-new /rootfs/bin
         rm -rf /rootfs/share/man
+        rm -rf /rootfs/bin
 finalize:
   - from: /rootfs
     to: /
