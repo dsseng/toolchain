@@ -3,6 +3,10 @@ variant: scratch
 dependencies:
   - stage: c
   - image: "stagex/diffutils@sha256:{{ .stagex_diffutils_sha256 }}"
+  - image: "stagex/llvm"
+  - image: "stagex/clang"
+  - image: "stagex/lld"
+  - image: "stagex/zlib"
 steps:
   - sources:
       - url: https://www.musl-libc.org/releases/musl-{{ .musl_version }}.tar.gz
@@ -10,10 +14,17 @@ steps:
         sha256: "{{ .musl_sha256 }}"
         sha512: "{{ .musl_sha512 }}"
     env:
-      # disable any optimizations, as musl does its own
-      CFLAGS: ""
-      CXXFLAGS: ""
-      LDFLAGS: ""
+      AR: "llvm-ar"
+      AS: "llvm-as"
+      NM: "llvm-nm"
+      OBJDUMP: "llvm-objdump"
+      RANLIB: "llvm-ranlib"
+      READELF: "llvm-readelf"
+      STRIP: "llvm-strip"
+      OBJCOPY: "llvm-objcopy"
+      LDFLAGS: "-fuse-ld=lld"
+      CC: "clang --target=aarch64-linux-musl"
+      CXX: "clang++ --target=aarch64-linux-musl"
     prepare:
       - |
         tar -xzf musl.tar.gz --strip-components=1
@@ -24,7 +35,7 @@ steps:
         mkdir build
         cd build
 
-        ../configure --prefix=/usr
+        ../configure --target=aarch64-linux-musl --prefix=/usr
     build:
       - |
         cd build
