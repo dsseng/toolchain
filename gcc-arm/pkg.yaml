@@ -1,7 +1,10 @@
-name: gcc
+name: gcc-arm
 variant: scratch
 dependencies:
-  - stage: c
+  - image: "stagex/busybox@sha256:{{ .stagex_busybox_sha256 }}"
+  - image: "stagex/make@sha256:{{ .stagex_make_sha256 }}"
+  - image: "stagex/musl@sha256:{{ .stagex_musl_sha256 }}"
+  - stage: gcc
   - image: "stagex/file@sha256:{{ .stagex_file_sha256 }}"
   - stage: binutils
   - stage: musl
@@ -26,6 +29,10 @@ steps:
         sha512: "{{ .mpc_sha512 }}"
     prepare:
       - |
+        echo 'int main(){}' > dummy.c
+        aarch64-linux-musl-gcc -v dummy.c
+        ./a.out
+
         mkdir mpfr
         tar -xJf mpfr.tar.xz --strip-components=1 -C mpfr
 
@@ -39,58 +46,32 @@ steps:
         mkdir build
         cd build
 
-        cat ../gcc/limitx.h ../gcc/glimits.h ../gcc/limity.h > `dirname $(gcc -print-libgcc-file-name)`/include-fixed/limits.h
+        cat ../gcc/limitx.h ../gcc/glimits.h ../gcc/limity.h > `dirname $(aarch64-linux-musl-gcc -print-libgcc-file-name)`/include-fixed/limits.h
 
         ../configure \
-        --disable-libssp \
         --build=x86_64-linux-musl \
-        --host=x86_64-linux-musl \
+        --host=aarch64-linux-musl \
         --target=aarch64-linux-musl \
         --with-build-sysroot=/sysroot \
         --with-sysroot=/sysroot \
         --prefix=/usr \
-        --enable-shared \
-        --enable-default-pie \
+        --disable-cet \
+        --disable-fixed-point \
+        --disable-libstdcxx-pch \
         --disable-multilib \
-        --disable-bootstrap \
-        --disable-assembly \
-        --disable-libmudflap \
         --disable-libsanitizer \
-        --disable-gnu-indirect-function \
-        --disable-libmpx \
+        --disable-nls \
         --disable-werror \
+        --enable-__cxa_atexit \
+        --enable-default-pie \
+        --enable-default-ssp \
         --enable-languages=c,c++ \
-        --enable-tls \
-        --enable-initfini-array \
-        --enable-libstdcxx-time=rt \
-        --enable-deterministic-archives \
-        # AR_FOR_TARGET=llvm-ar \
-        # AS_FOR_TARGET=llvm-as \
-        # LD_FOR_TARGET=llvm-ld \
-        # NM_FOR_TARGET=llvm-nm \
-        # OBJCOPY_FOR_TARGET=llvm-objcopy \
-        # OBJDUMP_FOR_TARGET=llvm-objdump \
-        # RANLIB_FOR_TARGET=llvm-ranlib \
-        # READELF_FOR_TARGET=llvm-readelf \
-        # STRIP_FOR_TARGET=llvm-strip
-        AR_FOR_TARGET=/usr/bin/aarch64-linux-musl-ar \
-        AS_FOR_TARGET=/usr/bin/aarch64-linux-musl-as \
-        LD_FOR_TARGET=/usr/bin/aarch64-linux-musl-ld \
-        NM_FOR_TARGET=/usr/bin/aarch64-linux-musl-nm \
-        OBJCOPY_FOR_TARGET=/usr/bin/aarch64-linux-musl-objcopy \
-        OBJDUMP_FOR_TARGET=/usr/bin/aarch64-linux-musl-objdump \
-        RANLIB_FOR_TARGET=/usr/bin/aarch64-linux-musl-ranlib \
-        READELF_FOR_TARGET=/usr/bin/aarch64-linux-musl-readelf \
-        STRIP_FOR_TARGET=/usr/bin/aarch64-linux-musl-strip
-
-        make -j $(nproc) all-gcc
+        --enable-link-serialization=2 \
+        --enable-linker-build-id || cat config.log
     build:
       - |
         cd build
-        make -j $(nproc) all-target-libgcc
-      # - |
-      #   cd build
-      #   make -j $(nproc) all-target-libstdc++-v3
+        make -j $(nproc)
     install:
       - |
         cd build
